@@ -22,7 +22,7 @@
   --ink-ghost:   #b0afa8;
   --red:         #b83228;
   --red-pale:    #fdf0ee;
-  --under:       #1a6641;
+  --under:       #b83228;
   --over:        #1a1a18;
   --even-score:  #3d3d38;
   --border:      #ddd5be;
@@ -109,24 +109,20 @@ button{cursor:pointer;font-family:inherit}
 .tn{font-size:.57rem;color:var(--ink-ghost);display:block;margin-top:2px;text-align:right}
 
 /* ============================================================
-   MOBILE card layout (< 640px)
+   MOBILE — horizontal scroll, same grid as desktop
    ============================================================ */
+.pool-table-outer{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.pool-wrap{min-width:580px}
+.mob-picks{display:none}
 @media(max-width:639px){
-  .pool-thead{display:none}
-  .pool-row{display:flex;flex-direction:column;align-items:flex-start;padding:.8rem .9rem;min-height:unset;gap:6px}
-  .c-rank{order:0}
-  .c-name{order:1;padding:0;font-size:.95rem}
-  .c-total{order:2;text-align:left;padding:0;border-left:none}
-  .c-player{display:none}
-  .mob-picks{order:3;display:flex;flex-wrap:wrap;gap:4px;width:100%}
-  .mob-chip{display:flex;flex-direction:column;align-items:center;background:var(--cream);border:1px solid var(--border-lt);border-radius:var(--r-sm);padding:4px 7px;min-width:56px}
-  .mob-chip.dim{opacity:.3}
-  .mob-chip .mc-n{font-size:.64rem;font-weight:400;color:var(--ink-mid);text-align:center}
-  .mob-chip .mc-s{font-size:.76rem;font-weight:600}
-  .mob-chip .mc-s.under{color:var(--under)}.mob-chip .mc-s.over{color:var(--over)}.mob-chip .mc-s.even{color:var(--even-score)}.mob-chip .mc-s.none{color:var(--ink-ghost);font-weight:300}
-  .tv{font-size:1.1rem}
+  .hdr-title{font-size:1.6rem}
+  .c-name{font-size:.8rem;padding:0 5px 0 4px}
+  .pn{font-size:.62rem;max-width:68px}
+  .ps{font-size:.75rem}
+  .pt{font-size:.54rem}
+  .tv{font-size:1.2rem}
+  .rn{font-size:1rem}
 }
-@media(min-width:640px){.mob-picks{display:none}}
 
 /* FIELD */
 .field-controls{display:flex;gap:8px;margin-bottom:.85rem;align-items:center}
@@ -232,13 +228,15 @@ const TIERS = {
   6:["Sami Valimaki","John Keefer","Michael Brennan","Davis Riley","Charl Schwartzel","Bubba Watson","Zach Johnson","Brian Campbell","Ethan Fang","Danny Willett","Angel Cabrera","Fifa Laopakdee","Mason Howell","Vijay Singh","Mateo Pulcini","Jackson Herrington","Naoyuki Kataoka","Mike Weir","Fred Couples","Jose Maria Olazabal","Brandon Holtz"],
 };
 
-/* ④ ESPN NAME OVERRIDES */
+/* ④ ESPN NAME OVERRIDES
+   Left = your tier list name, Right = ESPN displayName exactly as it appears */
 const NAME_MAP = {
   "Ludvig Åberg":              "Ludvig Aberg",
   "Nicolai Højgaard":          "Nicolai Hojgaard",
   "Rasmus Højgaard":           "Rasmus Hojgaard",
   "Rasmus Neergaard-Petersen": "Rasmus Neergaard Petersen",
-  "Fifa Laopakdee":            "Phichaksn Maichon",
+  "Fifa Laopakdee":            "Fifa Laopakdee",
+  "John Keefer":               "John Keefer",
 };
 
 /* ⑤ API */
@@ -262,9 +260,17 @@ function espn(x){return NAME_MAP[x]||x}
 function tier(x){return PT[n(x)]||null}
 function fs(tname){
   const t=espn(tname);
+  // 1. Exact key match
   if(scores[t]) return scores[t];
+  // 2. Normalised full-name match (handles accents, punctuation)
   const nn=n(t);
   for(const[k,v]of Object.entries(scores)) if(n(k)===nn) return v;
+  // 3. Last-name-only match as final fallback (catches ESPN abbreviations)
+  const last=nn.split(' ').slice(-1)[0];
+  if(last.length>3){
+    const hits=Object.entries(scores).filter(([k])=>n(k).split(' ').slice(-1)[0]===last);
+    if(hits.length===1) return hits[0][1];
+  }
   return null;
 }
 function revLookup(ename){
@@ -449,11 +455,10 @@ function renderPool(){
       <div class="c-name">${row.name}</div>
       <div class="c-total"><div class="tv ${tc}">${td}</div>${row.total!==null?`<span class="tn">best ${N_COUNT}</span>`:''}</div>
       ${pcells}
-      <div class="mob-picks">${mchips}</div>
     </div>`;
   }).join('');
 
-  el.innerHTML=`<div class="pool-wrap">${thead}${tbody}</div>`;
+  el.innerHTML=`<div class="pool-table-outer"><div class="pool-wrap">${thead}${tbody}</div></div>`;
   const ft=document.getElementById('pool-footer');
   if(ft&&lastOk)ft.textContent=`Best ${N_COUNT} of ${N_PICKS} scores count · Cut +${CUT_PEN} applied before selection · Updated ${lastOk.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
 }
