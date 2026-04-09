@@ -119,11 +119,13 @@ button{cursor:pointer;font-family:inherit}
 .pool-table-outer{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .pool-wrap{width:100%}
 .mob-picks{display:none}
+.pn-short{display:none}
 @media(max-width:639px){
   .hdr-title{font-size:1.6rem}
   .c-name{font-size:.75rem;padding:0 4px 0 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72px}
-  .pn{font-size:.58rem;max-width:54px}
-  .ps{font-size:.7rem}
+  .pn{font-size:clamp(.44rem,.95vw,.58rem);max-width:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .p-th{font-size:.48rem;letter-spacing:.06em;padding:0 2px}
+  .ps{font-size:.68rem}
   .pt{font-size:.5rem}
   .tv{font-size:1.05rem}
   .rn{font-size:.95rem;min-width:22px}
@@ -240,8 +242,6 @@ const TIERS = {
    Left = your tier list name, Right = ESPN displayName exactly as it appears */
 const NAME_MAP = {
   "Ludvig Åberg":              "Ludvig Aberg",
- /* "Nicolai Højgaard":          "Nicolai Hojgaard",
-  "Rasmus Højgaard":           "Rasmus Hojgaard",*/
   "Rasmus Neergaard-Petersen": "Rasmus Neergaard Petersen",
   "Fifa Laopakdee":            "Fifa Laopakdee",
   "John Keefer":               "John Keefer",
