@@ -326,28 +326,25 @@ function parse(ev){
     const name=c.athlete?.displayName||c.athlete?.fullName||'';
     if(!name)continue;
 
-    // IMPORTANT: c.score.value = raw stroke total (e.g. 36 strokes) — never use this.
-    // c.score.displayValue = to-par string ("E", "-3", "+2") — this is correct.
-    // linescores = per-round to-par values — reliable fallback mid-round.
+    // status.detail = "E(16)", "-3(F)", "+5(F)", "-1(9)" — most reliable field.
+    // Format is always score(holes) or score(F). Parse the score portion.
     let num=null;
-
-    // 1. displayValue — ESPN's to-par formatted string
-    const dvRaw=parseScore(c.score?.displayValue);
-    if(dvRaw!==null)num=dvRaw;
-
-    // 2. linescores — sum per-round to-par values as fallback
-    if(num===null){
-      const ls=c.linescores||[];
-      if(ls.length>0){
-        let sum=0,valid=true;
-        for(const l of ls){
-          const v=parseScore(l.value??l.displayValue);
-          if(v===null){valid=false;break}
-          sum+=v;
-        }
-        if(valid)num=sum;
-      }
+    const detail=c.status?.detail||c.status?.todayDetail||'';
+    if(detail){
+      // Extract everything before the first "(" — e.g. "-3" from "-3(F)"
+      const raw=detail.replace(/\(.*$/,'').trim();
+      num=parseScore(raw);
     }
+
+    // Fallback: statistics scoreToPar
+    if(num===null){
+      const stats=c.statistics||[];
+      const sp=stats.find(s=>s.name==='scoreToPar');
+      if(sp)num=parseScore(sp.displayValue??String(sp.value));
+    }
+
+    // Fallback: score.displayValue
+    if(num===null)num=parseScore(c.score?.displayValue);
 
     if(num===null)num=0;
 
