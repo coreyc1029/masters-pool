@@ -203,17 +203,15 @@ button{cursor:pointer;font-family:inherit}
    ① PARTICIPANTS  ← edit here to add / change picks
    ============================================================ */
 const PARTICIPANTS = [
-  { name:"Dylan",     picks:["Bryson DeChambeau","Brooks Koepka",   "Jordan Spieth", "Max Homa",        "Sergio Garcia", "Mason Howell"]       },
+  { name:"Dylan",     picks:["Bryson DeChambeau","Brooks Koepka",   "Jordan Spieth", "Max Homa",        "Sergio Garcia", "Mason Howell"]      },
   { name:"Carlos",    picks:["Bryson DeChambeau","Tommy Fleetwood",  "Patrick Reed",  "Corey Conners",   "Tom McKibbin",  "Davis Riley"]       },
   { name:"Josh",      picks:["Jon Rahm",          "Matt Fitzpatrick","Patrick Reed",  "Corey Conners",   "Aaron Rai",     "Sami Valimaki"]     },
-  { name:"Corey",     picks:["Scottie Scheffler", "Tommy Fleetwood", "Jordan Spieth", "Sepp Straka",   "Brian Harman",  "Aldrich Potgieter"]   },
+  { name:"Corey",     picks:["Scottie Scheffler", "Collin Morikawa", "Jordan Spieth", "Corey Conners",   "Brian Harman",  "Aldrich Potgieter"] },
   { name:"Christian", picks:["Bryson DeChambeau","Justin Rose",      "Patrick Reed",  "Jacob Bridgeman", "Brian Harman",  "Fifa Laopakdee"]    },
   { name:"Daniel",    picks:["Ludvig Åberg",      "Cameron Young",   "Akshay Bhatia", "Corey Conners",   "Ryan Gerard",   "John Keefer"]       },
   { name:"Jesper",    picks:["Bryson DeChambeau","Tommy Fleetwood",  "Justin Thomas", "Sepp Straka",     "Aaron Rai",     "Aldrich Potgieter"] },
   { name:"Benedikt",  picks:["Rory McIlroy",      "Justin Rose",     "Patrick Reed",  "Cameron Smith",   "Alex Noren",    "Brian Campbell"]    },
   { name:"Javier",    picks:["Jon Rahm",           "Cameron Young",  "Patrick Reed",  "Corey Conners",   "Matt McCarty",  "Davis Riley"]       },
-  { name:"Tom",       picks:["Scottie Scheffler", "Tommy Fleetwood",  "Min Woo Lee",  "Nicolai Hojgaard",   "Ryan Gerard",  "Sami Valimaki"]   },
-  { name:"Miguel",    picks:["Xander Schauffele", "Cameron Young",  "Jake Knapp",  "Corey Conners",   "Max Greyserman",  "Zach Johnson"]       },  
 ];
 
 /* ② SCORING */
@@ -309,21 +307,85 @@ async function fetchScores(){
   sched();renderPool();renderField();
 }
 
+function parseScore(raw){
+  // Handles: "-3", "+2", "2", "E", "", undefined, null
+  if(raw===null||raw===undefined||raw==='')return null;
+  const s=String(raw).trim();
+  if(s==='E'||s==='Even')return 0;
+  const n=parseInt(s,10);
+  return isNaN(n)?null:n;
+}
+
 function parse(ev){
   scores={};
-  for(const c of(ev.competitions?.[0]?.competitors||[])){
+  const competitors=ev.competitions?.[0]?.competitors||[];
+  // Log first competitor raw shape so we can debug field names if needed
+  if(competitors.length>0){
+    console.log('[Pool Debug] Sample competitor keys:',Object.keys(competitors[0]));
+    console.log('[Pool Debug] Sample score field:',competitors[0].score);
+    console.log('[Pool Debug] Sample linescores:',competitors[0].linescores);
+    console.log('[Pool Debug] Sample statistics:',competitors[0].statistics);
+  }
+  for(const c of competitors){
     const name=c.athlete?.displayName||c.athlete?.fullName||'';
     if(!name)continue;
-    const raw=c.score?.displayValue??'E';
-    const num=raw==='E'?0:(parseInt(raw,10)||0);
+
+    // Strategy: try each score source in order of reliability for live play
+    // 1. c.score.value  — numeric total, most reliable when populated
+    // 2. c.score.displayValue — string total, may be "E" even when not even
+    // 3. Sum of linescores — per-round scores, reliable during live rounds
+    // 4. statistics — sometimes holds "toPar" value
+    let num=null;
+
+    // Try numeric value first
+    if(c.score?.value!==undefined&&c.score?.value!==null){
+      num=parseInt(c.score.value,10);
+      if(isNaN(num))num=null;
+    }
+
+    // Try displayValue if numeric value missing or suspiciously zero while holes played
+    if(num===null||num===0){
+      const dv=parseScore(c.score?.displayValue);
+      if(dv!==null)num=dv;
+    }
+
+    // Try summing linescores (per-round) — key during live round 1
+    if(num===null||num===0){
+      const ls=c.linescores||[];
+      if(ls.length>0){
+        let sum=0,valid=true;
+        for(const l of ls){
+          const v=parseScore(l.value??l.displayValue);
+          if(v===null){valid=false;break}
+          sum+=v;
+        }
+        if(valid&&ls.length>0)num=sum;
+      }
+    }
+
+    // Try statistics array for a "toPar" or "score" stat
+    if(num===null||num===0){
+      const stats=c.statistics||[];
+      const toPar=stats.find(s=>/par|score/i.test(s.name||''));
+      if(toPar){
+        const v=parseScore(toPar.displayValue??toPar.value);
+        if(v!==null)num=v;
+      }
+    }
+
+    if(num===null)num=0;
+
     const sn=(c.status?.type?.name||'').toUpperCase();
     const sd=(c.status?.type?.description||'').toLowerCase();
     const cut=sn==='STATUS_CUT'||sd.includes('cut')||sd.includes('wd')||sd.includes('withdrew')||sd.includes('dq');
     const dv=c.status?.displayValue||'';
     const tr=c.status?.thru;
     const thru=dv==='F'||dv==='F*'?'F':tr!=null?`Thru ${tr}`:dv||'';
+
     scores[name]={score:num,cut,thru};
   }
+  console.log('[Pool Debug] Parsed',Object.keys(scores).length,'players. Sample:',
+    Object.entries(scores).slice(0,3).map(([k,v])=>`${k}: ${v.score} (${v.thru})`).join(', '));
 }
 
 function fail(e){
