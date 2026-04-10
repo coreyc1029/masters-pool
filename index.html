@@ -340,25 +340,35 @@ function parse(ev){
     const name=c.athlete?.displayName||c.athlete?.fullName||'';
     if(!name)continue;
 
-    // status.detail = "E(16)", "-3(F)", "+5(F)", "-1(9)" — most reliable field.
-    // Format is always score(holes) or score(F). Parse the score portion.
+    // statistics.scoreToPar is the only field ESPN keeps as tournament to-par
+    // consistently across all states: mid-round, finished, and between rounds.
+    // status.detail flips between round score and tournament score depending on
+    // round state, so it cannot be trusted as primary. scoreToPar is the fix.
     let num=null;
-    const detail=c.status?.detail||c.status?.todayDetail||'';
-    if(detail){
-      // Extract everything before the first "(" — e.g. "-3" from "-3(F)"
-      const raw=detail.replace(/\(.*$/,'').trim();
-      num=parseScore(raw);
+
+    // 1. statistics.scoreToPar — always tournament to-par
+    const stats=c.statistics||[];
+    const stp=stats.find(s=>s.name==='scoreToPar');
+    if(stp!=null){
+      const v=parseScore(stp.displayValue??String(stp.value));
+      if(v!==null)num=v;
     }
 
-    // Fallback: statistics scoreToPar
+    // 2. score.displayValue — to-par string fallback
     if(num===null){
-      const stats=c.statistics||[];
-      const sp=stats.find(s=>s.name==='scoreToPar');
-      if(sp)num=parseScore(sp.displayValue??String(sp.value));
+      const v=parseScore(c.score?.displayValue);
+      if(v!==null)num=v;
     }
 
-    // Fallback: score.displayValue
-    if(num===null)num=parseScore(c.score?.displayValue);
+    // 3. status.detail — strip "(holes)" suffix and parse, last resort
+    if(num===null){
+      const detail=c.status?.detail||'';
+      if(detail){
+        const raw=detail.replace(/\(.*$/,'').trim();
+        const v=parseScore(raw);
+        if(v!==null)num=v;
+      }
+    }
 
     if(num===null)num=0;
 
